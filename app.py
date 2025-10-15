@@ -1,13 +1,18 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import requests
+import os
 
 app = Flask(__name__)
 
 WEBHOOK = "https://webhook.site/bc6a33cc-de1e-4d23-a069-20b1fc36818e"
 
+@app.route('/')
+def home():
+    return render_template('index.html')folder
+
 @app.route('/receive', methods=['POST'])
 def receive():
-    data = request.json
+    data = request.get_json(force=True)
     print("Received data:", data)
     try:
         r = requests.post(WEBHOOK, json=data)
@@ -16,9 +21,5 @@ def receive():
         print("Error forwarding:", e)
     return jsonify({"status": "ok", "received": data})
 
-@app.route('/')
-def home():
-    return "✅ Server is running! Send POST to /receive"
-
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    app.run(host='0.0.0.0', port=10000, debug=True)
