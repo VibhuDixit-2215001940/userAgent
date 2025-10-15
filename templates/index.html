@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
+<link rel="icon" type="image/png" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f512.png">
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>UserAgent-InfoParsing</title>
+<title>userAgent-Info</title>
 <style>
   :root{--bg:#07060a;--card:#0f1116;--accent:#21d4fd;--accent2:#b721ff;--muted:#8a8f98}
   html,body{height:100%;margin:0;background:radial-gradient(circle at 20% 10%, #0b1220 0%, var(--bg) 40%), var(--bg);font-family:Inter,system-ui,Segoe UI,Roboto,Arial;}
@@ -56,12 +57,7 @@
 <div id="consentModal" class="modal" style="display:none">
   <div class="modal-card">
     <h3>Permission required</h3>
-    <div class="small">This demo will collect the following browser information and send it to the server:</div>
-    <ul class="small" style="margin:6px 0 12px">
-      <li>navigator.userAgent, platform, language</li>
-      <li>screen width/height, timezone</li>
-      <li>optional: periodic sending every 30s if enabled</li>
-    </ul>
+    <div class="small">This demo will collect browser + public IP info and send it to the server.</div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
       <label class="inline"><input type="checkbox" id="periodic"/> Allow periodic sending every 30s</label>
     </div>
@@ -73,30 +69,23 @@
 </div>
 
 <script>
-(function(){
-  // When the server serves the page and API from same origin, use relative path:
+(async function(){
   const SERVER = "/receive";
-
   const btn = document.getElementById('mainBtn');
   const status = document.getElementById('status');
   const consoleBox = document.getElementById('console');
   const metaGrid = document.getElementById('metaGrid');
   const jiggle = document.getElementById('jiggle');
-
   const consentModal = document.getElementById('consentModal');
   const agreeConsent = document.getElementById('agreeConsent');
   const cancelConsent = document.getElementById('cancelConsent');
   const periodicCheckbox = document.getElementById('periodic');
-
   let periodicInterval = null;
 
-  function logToConsole(html){
-    consoleBox.innerHTML = html;
-  }
+  function logToConsole(html){ consoleBox.innerHTML = html; }
   function showMeta(obj){
-    metaGrid.style.display = 'flex';
-    metaGrid.innerHTML = '';
-    for(const k of Object.keys(obj)){
+    metaGrid.style.display = 'flex'; metaGrid.innerHTML = '';
+    for(const k in obj){
       const el = document.createElement('div');
       el.className = 'meta';
       el.innerHTML = `<b>${k}</b><div>${String(obj[k])}</div>`;
@@ -104,19 +93,28 @@
     }
   }
 
-  function collectInfo(){
-    const nav = navigator;
-    const d = new Date();
+  async function getPublicIP(){
+    try{
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      return data.ip || 'unknown';
+    }catch(e){ return 'unavailable'; }
+  }
+
+  async function collectInfo(){
+    const nav = navigator, d = new Date();
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown';
+    const ip = await getPublicIP();
     return {
+      ipAddress: ip,
       userAgent: nav.userAgent,
       platform: nav.platform,
       language: nav.language,
       cookieEnabled: nav.cookieEnabled,
       screenWidth: screen.width,
       screenHeight: screen.height,
-      innerWidth: innerWidth,
-      innerHeight: innerHeight,
+      innerWidth,
+      innerHeight,
       timezone: tz,
       timestamp: d.toISOString()
     };
@@ -125,49 +123,37 @@
   async function sendData(payload){
     try{
       status.textContent = 'Sending...';
-      const res = await fetch(SERVER, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(SERVER,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       const data = await res.json().catch(()=>null);
-      status.textContent = res.ok ? 'Sent' : 'Error';
-      return {ok:res.ok, status:res.status, data};
-    }catch(e){
-      status.textContent = 'Error';
-      return {ok:false, error:String(e)};
-    }
+      status.textContent = res.ok?'Sent':'Error';
+      return {ok:res.ok,status:res.status,data};
+    }catch(e){ status.textContent='Error'; return {ok:false,error:String(e)}; }
   }
 
-  btn.addEventListener('click', ()=>{ consentModal.style.display = 'flex'; });
-  cancelConsent.addEventListener('click', ()=>{ consentModal.style.display = 'none'; });
+  btn.addEventListener('click',()=>consentModal.style.display='flex');
+  cancelConsent.addEventListener('click',()=>consentModal.style.display='none');
 
-  agreeConsent.addEventListener('click', async ()=>{
-    consentModal.style.display = 'none';
-    const payload = collectInfo();
+  agreeConsent.addEventListener('click',async()=>{
+    consentModal.style.display='none';
+    const payload = await collectInfo();
     logToConsole('<div class="muted">Collected data — sending now...</div>');
     showMeta(payload);
     jiggle.classList.add('on');
-
     const result = await sendData(payload);
-    if(result.ok){
-      logToConsole(`<div>Data sent successfully. Server status: ${result.status}</div><pre>${JSON.stringify(result.data, null, 2)}</pre>`);
-    } else {
-      logToConsole(`<div class="muted">Failed to send: ${result.error || 'unknown'}</div>`);
-    }
+    if(result.ok) logToConsole(`<div>Data sent successfully. Server status: ${result.status}</div><pre>${JSON.stringify(result.data,null,2)}</pre>`);
+    else logToConsole(`<div class="muted">Failed to send: ${result.error||'unknown'}</div>`);
 
     if(periodicCheckbox.checked){
       if(periodicInterval) clearInterval(periodicInterval);
-      periodicInterval = setInterval(async ()=>{
-        const p = collectInfo(); p.note = 'periodic';
+      periodicInterval=setInterval(async()=>{
+        const p=await collectInfo(); p.note='periodic';
         await sendData(p);
         jiggle.classList.remove('on'); void jiggle.offsetWidth; jiggle.classList.add('on');
-      }, 30000);
+      },30000);
     }
   });
 
-  window.addEventListener('beforeunload', ()=> { if(periodicInterval) clearInterval(periodicInterval); });
-
+  window.addEventListener('beforeunload',()=>{ if(periodicInterval) clearInterval(periodicInterval); });
 })();
 </script>
 </body>
