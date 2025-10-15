@@ -1,23 +1,20 @@
-import platform, psutil, requests, time
+from flask import Flask, request, jsonify
+import requests
 
-SERVER = "*******************" 
+app = Flask(__name__)
 
-while True:
-    data = {
-    "hostname": platform.node(),
-    "system": platform.system(),
-    "os_version": platform.version(),
-    "cpu_usage": psutil.cpu_percent(),
-    "cpu_cores": psutil.cpu_count(logical=True),
-    "memory_usage": psutil.virtual_memory().percent,
-    "total_memory": psutil.virtual_memory().total,
-    "disk_usage": psutil.disk_usage('/').percent,
-    "uptime_sec": time.time() - psutil.boot_time()
-    }
+WEBHOOK = "https://webhook.site/bc6a33cc-de1e-4d23-a069-20b1fc36818e"
+
+@app.route('/receive', methods=['POST'])
+def receive():
+    data = request.json
+    print("Received data:", data)
     try:
-        r = requests.post(SERVER, json=data, timeout=10)
-        # print("Status:", r.status_code, "| Response:", r.text)
-        print("Gaya abb toh tu!")
+        r = requests.post(WEBHOOK, json=data)
+        print("Forwarded to webhook:", r.status_code)
     except Exception as e:
-        print("Error:", e)
-    time.sleep(30)
+        print("Error forwarding:", e)
+    return jsonify({"status": "ok", "received": data})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=10000)

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>BlackBox Demo — Consent Only</title>
+<style>
+  :root{--bg:#07060a;--card:#0f1116;--accent:#21d4fd;--accent2:#b721ff;--muted:#8a8f98}
+  html,body{height:100%;margin:0;background:radial-gradient(circle at 20% 10%, #0b1220 0%, var(--bg) 40%), var(--bg);font-family:Inter,system-ui,Segoe UI,Roboto,Arial;}
+  .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:40px}
+  .card{width:900px;max-width:95%;padding:36px;border-radius:18px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));box-shadow:0 10px 40px rgba(2,6,23,0.7);border:1px solid rgba(255,255,255,0.03);position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;inset:0;background-image:linear-gradient(transparent 50%, rgba(33,212,253,0.02) 50%), linear-gradient(90deg, transparent 50%, rgba(183,33,255,0.02) 50%);mix-blend-mode:overlay;pointer-events:none}
+  h1{margin:0 0 10px;color:var(--accent2);font-size:22px;letter-spacing:1px}
+  p.lead{color:var(--muted);margin:0 0 22px}
+  .center{display:flex;gap:16px;align-items:center}
+  .btn{height:56px;padding:0 20px;border-radius:12px;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 6px 30px rgba(139,92,246,0.12), inset 0 -2px rgba(255,255,255,0.06);color:#021019;font-weight:700;font-size:16px;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:transform .12s}
+  .btn:active{transform:translateY(2px) scale(.995)}
+  .console{margin-top:22px;padding:16px;border-radius:10px;background:linear-gradient(180deg, rgba(0,0,0,0.35), rgba(255,255,255,0.02));color:#cfeef8;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;font-size:13px}
+  .meta-grid{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px}
+  .meta{background:rgba(255,255,255,0.02);padding:12px;border-radius:8px;min-width:220px;color:var(--muted);font-size:13px}
+  .meta b{color:#dff7ff;display:block;margin-bottom:6px}
+  .jiggle{display:inline-block;margin-left:12px;font-weight:800;color:#ff6b6b;opacity:0;transform-origin:center;animation:none}
+  .jiggle.on{opacity:1;animation:jig 0.9s ease-in-out infinite}
+  @keyframes jig{0%{transform:translateX(0) rotate(-1deg)}25%{transform:translateX(-6px) rotate(2deg)}50%{transform:translateX(0) rotate(-2deg)}75%{transform:translateX(6px) rotate(2deg)}100%{transform:translateX(0) rotate(0)}}
+  .modal{position:fixed;inset:0;background:rgba(1,2,6,0.6);display:flex;align-items:center;justify-content:center;z-index:60;backdrop-filter:blur(3px)}
+  .modal-card{width:460px;max-width:92%;background:var(--card);padding:20px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+  .small{font-size:13px;color:var(--muted);margin-bottom:12px}
+  footer{margin-top:18px;color:var(--muted);font-size:12px;text-align:right}
+  .muted{color:var(--muted);font-size:13px}
+  label.inline{display:inline-flex;gap:8px;align-items:center;cursor:pointer}
+  input[type=checkbox]{width:16px;height:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>BlackBox Demo — Consent Required</h1>
+    <p class="lead">Ek demo page: dark, hacker-ish animations — data bhejne se pehle consent lega. Sirf browser-level info (non-sensitive) collect hoti hai.</p>
+
+    <div class="center">
+      <button id="mainBtn" class="btn">Run My Code</button>
+      <span class="muted">Status: <span id="status">Idle</span></span>
+      <span class="jiggle" id="jiggle">Bhai tu toh gaya!!</span>
+    </div>
+
+    <div class="console" id="console">
+      <div class="muted">No data sent yet. Click the button and grant consent to send data.</div>
+    </div>
+
+    <div class="meta-grid" id="metaGrid" style="display:none"></div>
+
+    <footer>Demo — Use only for testing with explicit consent.</footer>
+  </div>
+</div>
+
+<div id="consentModal" class="modal" style="display:none">
+  <div class="modal-card">
+    <h3>Permission required</h3>
+    <div class="small">This demo will collect the following browser information and send it to the server:</div>
+    <ul class="small" style="margin:6px 0 12px">
+      <li>navigator.userAgent, platform, language</li>
+      <li>screen width/height, timezone</li>
+      <li>optional: periodic sending every 30s if enabled</li>
+    </ul>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <label class="inline"><input type="checkbox" id="periodic"/> Allow periodic sending every 30s</label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button id="cancelConsent" style="padding:8px 12px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);cursor:pointer">Cancel</button>
+      <button id="agreeConsent" style="padding:8px 12px;border-radius:8px;background:linear-gradient(90deg,var(--accent),var(--accent2));border:none;color:#021019;cursor:pointer">I consent — send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // When the server serves the page and API from same origin, use relative path:
+  // const SERVER = "/receive";
+  const SERVER = "https://webhook.site/bc6a33cc-de1e-4d23-a069-20b1fc36818e";
+
+  const btn = document.getElementById('mainBtn');
+  const status = document.getElementById('status');
+  const consoleBox = document.getElementById('console');
+  const metaGrid = document.getElementById('metaGrid');
+  const jiggle = document.getElementById('jiggle');
+
+  const consentModal = document.getElementById('consentModal');
+  const agreeConsent = document.getElementById('agreeConsent');
+  const cancelConsent = document.getElementById('cancelConsent');
+  const periodicCheckbox = document.getElementById('periodic');
+
+  let periodicInterval = null;
+
+  function logToConsole(html){
+    consoleBox.innerHTML = html;
+  }
+  function showMeta(obj){
+    metaGrid.style.display = 'flex';
+    metaGrid.innerHTML = '';
+    for(const k of Object.keys(obj)){
+      const el = document.createElement('div');
+      el.className = 'meta';
+      el.innerHTML = `<b>${k}</b><div>${String(obj[k])}</div>`;
+      metaGrid.appendChild(el);
+    }
+  }
+
+  function collectInfo(){
+    const nav = navigator;
+    const d = new Date();
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown';
+    return {
+      userAgent: nav.userAgent,
+      platform: nav.platform,
+      language: nav.language,
+      cookieEnabled: nav.cookieEnabled,
+      screenWidth: screen.width,
+      screenHeight: screen.height,
+      innerWidth: innerWidth,
+      innerHeight: innerHeight,
+      timezone: tz,
+      timestamp: d.toISOString()
+    };
+  }
+
+  async function sendData(payload){
+    try{
+      status.textContent = 'Sending...';
+      const res = await fetch(SERVER, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(()=>null);
+      status.textContent = res.ok ? 'Sent' : 'Error';
+      return {ok:res.ok, status:res.status, data};
+    }catch(e){
+      status.textContent = 'Error';
+      return {ok:false, error:String(e)};
+    }
+  }
+
+  btn.addEventListener('click', ()=>{ consentModal.style.display = 'flex'; });
+  cancelConsent.addEventListener('click', ()=>{ consentModal.style.display = 'none'; });
+
+  agreeConsent.addEventListener('click', async ()=>{
+    consentModal.style.display = 'none';
+    const payload = collectInfo();
+    logToConsole('<div class="muted">Collected data — sending now...</div>');
+    showMeta(payload);
+    jiggle.classList.add('on');
+
+    const result = await sendData(payload);
+    if(result.ok){
+      logToConsole(`<div>Data sent successfully. Server status: ${result.status}</div><pre>${JSON.stringify(result.data, null, 2)}</pre>`);
+    } else {
+      logToConsole(`<div class="muted">Failed to send: ${result.error || 'unknown'}</div>`);
+    }
+
+    if(periodicCheckbox.checked){
+      if(periodicInterval) clearInterval(periodicInterval);
+      periodicInterval = setInterval(async ()=>{
+        const p = collectInfo(); p.note = 'periodic';
+        await sendData(p);
+        jiggle.classList.remove('on'); void jiggle.offsetWidth; jiggle.classList.add('on');
+      }, 30000);
+    }
+  });
+
+  window.addEventListener('beforeunload', ()=> { if(periodicInterval) clearInterval(periodicInterval); });
+
+})();
+</script>
+</body>
+</html>
