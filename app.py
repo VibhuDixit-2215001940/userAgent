@@ -16,5 +16,9 @@ def receive():
         print("Error forwarding:", e)
     return jsonify({"status": "ok", "received": data})
 
+@app.route('/')
+def home():
+    return "✅ Server is running! Send POST to /receive"
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
